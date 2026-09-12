@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microphone Diagnostic</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            background: #2563eb;
+            color: white;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .success { background: #d1fae5; color: #065f46; }
+        .error { background: #fee2e2; color: #991b1b; }
+        .info { background: #dbeafe; color: #1e40af; }
+        .warning { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Microphone Diagnostic Tool</h1>
+
+    <div class="test-box">
+        <h2>Environment Check</h2>
+        <div id="env-status" class="status info">Checking...</div>
+    </div>
+
+    <div class="test-box">
+        <h2>Permission Test</h2>
+        <button onclick="testPermission()">Request Microphone Permission</button>
+        <div id="perm-status" class="status info">Click button to test</div>
+    </div>
+
+    <div class="test-box">
+        <h2>Speech Recognition Test</h2>
+        <button onclick="testRecognition()">Test Speech Recognition</button>
+        <div id="recog-status" class="status info">Click button to test</div>
+    </div>
+
+    <script>
+        // Environment check
+        window.onload = function() {
+            let info = `Protocol: ${window.location.protocol}
+Hostname: ${window.location.hostname}
+Port: ${window.location.port}
+User Agent: ${navigator.userAgent.substring(0, 80)}...
+
+Speech Recognition Available: ${!!(window.SpeechRecognition || window.webkitSpeechRecognition)}
+Speech Synthesis Available: ${!!window.speechSynthesis}
+
+Security Context:
+- isSecureContext: ${window.isSecureContext}
+- https: ${window.location.protocol === 'https:'}
+- localhost: ${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'}`;
+
+            const envStatus = document.getElementById('env-status');
+
+            if (window.location.protocol === 'file:') {
+                envStatus.className = 'status error';
+                info += '\n\n❌ ERROR: Running from file:// - Microphone WILL NOT WORK!';
+                info += '\nYou must open this via http://localhost:8000/';
+            } else if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                envStatus.className = 'status warning';
+                info += '\n\n⚠️ WARNING: Not a secure context and not localhost!';
+            } else {
+                envStatus.className = 'status success';
+                info += '\n\n✅ Environment looks good!';
+            }
+
+            envStatus.textContent = info;
+        };
+
+        // Test microphone permission
+        async function testPermission() {
+            const status = document.getElementById('perm-status');
+            status.className = 'status info';
+            status.textContent = 'Requesting microphone access...';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                status.className = 'status success';
+                status.textContent = `✅ SUCCESS! Microphone permission granted.
+
+Stream ID: ${stream.id}
+Audio Tracks: ${stream.getAudioTracks().length}
+Track Label: ${stream.getAudioTracks()[0]?.label || 'unknown'}
+
+Your microphone is working!`;
+
+                // Stop the stream
+                stream.getTracks().forEach(track => track.stop());
+
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = `❌ FAILED: ${err.name}
+
+Error: ${err.message}
+
+Common fixes:
+1. Click the 🔒 or 🔓 icon in the address bar
+2. Go to Site Settings → Microphone → Allow
+3. For Chrome: chrome://settings/content/microphone
+4. Make sure no other app is using the microphone
+5. Try a different browser`;
+            }
+        }
+
+        // Test speech recognition
+        function testRecognition() {
+            const status = document.getElementById('recog-status');
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                status.className = 'status error';
+                status.textContent = '❌ Speech Recognition not supported in this browser.\nTry Chrome, Edge, or Safari.';
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            status.className = 'status info';
+            status.textContent = '🎤 Listening... Say something!';
+
+            recognition.onstart = () => {
+                status.className = 'status info';
+                status.textContent = '🎤 LISTENING NOW - Speak clearly!';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                const confidence = event.results[0][0].confidence;
+
+                status.className = 'status success';
+                status.textContent = `✅ SUCCESS! Speech recognized:
+
+You said: "${transcript}"
+Confidence: ${(confidence * 100).toFixed(1)}%
+
+Your microphone and speech recognition are both working!`;
+            };
+
+            recognition.onerror = (event) => {
+                status.className = 'status error';
+
+                let fix = '';
+                if (event.error === 'not-allowed') {
+                    fix = '\n\nFIX: Click the 🔒 icon in address bar → Allow microphone';
+                } else if (event.error === 'audio-capture') {
+                    fix = '\n\nFIX:\n1. Check browser permissions\n2. Make sure no other app is using mic\n3. Try refreshing the page';
+                } else if (event.error === 'no-speech') {
+                    fix = '\n\nFIX: Speak louder or check your microphone volume';
+                }
+
+                status.textContent = `❌ Speech Recognition Error: ${event.error}${fix}`;
+            };
+
+            recognition.onend = () => {
+                if (status.className === 'status info') {
+                    status.className = 'status warning';
+                    status.textContent = '⚠️ Stopped listening. No speech detected.\nTry again and speak clearly.';
+                }
+            };
+
+            try {
+                recognition.start();
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = `❌ Failed to start: ${err.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

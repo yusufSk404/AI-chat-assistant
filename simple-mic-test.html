@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mic Test - Super Simple</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            padding: 20px 40px;
+            font-size: 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        #result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        .success { background: #d1fae5; color: #065f46; }
+        .error { background: #fee2e2; color: #991b1b; }
+        .info { background: #dbeafe; color: #1e40af; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Microphone Test</h1>
+    <p>Click the button below to test microphone access</p>
+
+    <button onclick="testMic()">TEST MICROPHONE</button>
+
+    <div id="result" class="info">Waiting for test...</div>
+
+    <script>
+        async function testMic() {
+            const result = document.getElementById('result');
+            result.className = 'info';
+            result.textContent = '⏳ Requesting microphone access...';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                result.className = 'success';
+                result.innerHTML = `✅ SUCCESS!<br><br>Microphone is working!<br>Stream ID: ${stream.id}<br><br>You can now go back to http://localhost:8000 and the microphone should work there too.`;
+
+                // Stop the stream
+                stream.getTracks().forEach(track => track.stop());
+
+            } catch (err) {
+                result.className = 'error';
+                result.innerHTML = `❌ FAILED<br><br>Error: ${err.name}<br>Message: ${err.message}<br><br>`;
+
+                if (err.name === 'NotAllowedError') {
+                    result.innerHTML += `<strong>FIX:</strong><br>1. Look at the address bar<br>2. Click the 🔒 or camera icon<br>3. Change Microphone to "Allow"<br>4. Refresh and try again`;
+                } else if (err.name === 'NotFoundError') {
+                    result.innerHTML += `<strong>FIX:</strong><br>No microphone detected. Check if your mic is plugged in.`;
+                } else {
+                    result.innerHTML += `<strong>Try:</strong><br>1. Check Windows microphone settings<br>2. Make sure no other app is using the mic<br>3. Try a different browser`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

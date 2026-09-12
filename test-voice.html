@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { text-align: center; color: #333; }
+        .box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            width: 100%;
+        }
+        .mic-btn {
+            background: #2563eb;
+            color: white;
+        }
+        .mic-btn.listening {
+            background: #dc2626;
+            animation: pulse 1s infinite;
+        }
+        .speak-btn {
+            background: #059669;
+            color: white;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .success { background: #d1fae5; color: #065f46; }
+        .error { background: #fee2e2; color: #991b1b; }
+        .info { background: #dbeafe; color: #1e40af; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Voice Features Test</h1>
+
+    <!-- Speech Recognition Test -->
+    <div class="box">
+        <h2>🎙️ Speech-to-Text (Voice Input)</h2>
+        <button id="mic-btn" class="mic-btn">Click & Speak</button>
+        <div id="mic-status" class="status info">Click the button and say something</div>
+        <textarea id="transcript" rows="3" placeholder="Your speech will appear here..." readonly></textarea>
+    </div>
+
+    <!-- Text-to-Speech Test -->
+    <div class="box">
+        <h2>🔊 Text-to-Speech (Voice Output)</h2>
+        <textarea id="text-input" rows="3" placeholder="Type something for the AI to say...">Hello! I am your friendly AI assistant. How can I help you today?</textarea>
+        <button id="speak-btn" class="speak-btn">Speak This Text</button>
+        <div id="tts-status" class="status info">Enter text above and click Speak</div>
+    </div>
+
+    <!-- Full Chat Test -->
+    <div class="box">
+        <h2>💬 Full Voice Chat Test</h2>
+        <p style="color: #666; font-size: 14px;">Test the complete flow: speak → AI responds → hear response</p>
+        <button id="chat-btn" class="mic-btn">Start Voice Chat</button>
+        <div id="chat-status" class="status info">Click to start a voice conversation</div>
+        <textarea id="chat-result" rows="5" placeholder="Conversation will appear here..." readonly></textarea>
+    </div>
+
+    <script>
+        // ======== SPEECH RECOGNITION (VOICE INPUT) ========
+        const micBtn = document.getElementById('mic-btn');
+        const micStatus = document.getElementById('mic-status');
+        const transcript = document.getElementById('transcript');
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isListening = true;
+                micBtn.classList.add('listening');
+                micBtn.textContent = 'Listening... (click to stop)';
+                micStatus.className = 'status error';
+                micStatus.textContent = '🔴 Recording...';
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                micBtn.classList.remove('listening');
+                micBtn.textContent = 'Click & Speak';
+                if (micStatus.textContent === '🔴 Recording...') {
+                    micStatus.className = 'status info';
+                    micStatus.textContent = 'Stopped. Click again to speak.';
+                }
+            };
+
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                transcript.value = text;
+                micStatus.className = 'status success';
+                micStatus.textContent = '✅ Heard: "' + text + '"';
+            };
+
+            recognition.onerror = (event) => {
+                micStatus.className = 'status error';
+                micStatus.textContent = '❌ Error: ' + event.error;
+                isListening = false;
+                micBtn.classList.remove('listening');
+                micBtn.textContent = 'Click & Speak';
+            };
+
+            micBtn.addEventListener('click', () => {
+                if (isListening) {
+                    recognition.stop();
+                } else {
+                    recognition.start();
+                }
+            });
+        } else {
+            micStatus.className = 'status error';
+            micStatus.textContent = '❌ Speech recognition not supported in this browser';
+            micBtn.disabled = true;
+        }
+
+        const speakBtn = document.getElementById('speak-btn');
+        const textInput = document.getElementById('text-input');
+        const ttsStatus = document.getElementById('tts-status');
+
+        const synth = window.speechSynthesis;
+        let voiceSelected = null;
+
+        function loadVoices() {
+            const voices = synth.getVoices();
+            voiceSelected = voices.find(v => v.lang.startsWith('en') && v.name.includes('Natural')) ||
+                           voices.find(v => v.lang.startsWith('en-US')) ||
+                           voices.find(v => v.lang.startsWith('en')) ||
+                           voices[0];
+        }
+
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = loadVoices;
+        }
+        loadVoices();
+
+        function speak(text) {
+            synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            if (voiceSelected) utterance.voice = voiceSelected;
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+
+            utterance.onstart = () => {
+                ttsStatus.className = 'status info';
+                ttsStatus.textContent = '🔊 Speaking...';
+            };
+
+            utterance.onend = () => {
+                ttsStatus.className = 'status success';
+                ttsStatus.textContent = '✅ Finished speaking';
+            };
+
+            utterance.onerror = (e) => {
+                ttsStatus.className = 'status error';
+                ttsStatus.textContent = '❌ Speech error: ' + e.error;
+            };
+
+            synth.speak(utterance);
+        }
+
+        speakBtn.addEventListener('click', () => {
+            const text = textInput.value.trim();
+            if (text) {
+                speak(text);
+            } else {
+                ttsStatus.className = 'status error';
+                ttsStatus.textContent = '❌ Please enter some text first';
+            }
+        });
+
+       
+        const chatBtn = document.getElementById('chat-btn');
+        const chatStatus = document.getElementById('chat-status');
+        const chatResult = document.getElementById('chat-result');
+
+        chatBtn.addEventListener('click', async () => {
+            if (!recognition) {
+                chatStatus.className = 'status error';
+                chatStatus.textContent = '❌ Speech recognition not supported';
+                return;
+            }
+
+            chatBtn.classList.add('listening');
+            chatBtn.textContent = 'Listening...';
+            chatStatus.className = 'status error';
+            chatStatus.textContent = '🔴 Speak now...';
+
+            recognition.onresult = async (event) => {
+                const userText = event.results[0][0].transcript;
+                chatResult.value = 'You: ' + userText + '\n\n';
+                chatStatus.className = 'status info';
+                chatStatus.textContent = '⏳ AI is thinking...';
+
+                try {
+                    const res = await fetch('http://127.0.0.1:8000/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: userText,
+                            session_id: 'test-' + Date.now()
+                        })
+                    });
+
+                    if (!res.ok) throw new Error('API error');
+
+                    const data = await res.json();
+                    chatResult.value += 'AI: ' + data.reply;
+                    chatStatus.className = 'status success';
+                    chatStatus.textContent = '✅ Got response! Now speaking...';
+
+                    // Speak the response
+                    speak(data.reply);
+
+                } catch (e) {
+                    chatResult.value += 'Error: ' + e.message;
+                    chatStatus.className = 'status error';
+                    chatStatus.textContent = '❌ Failed to connect to API. Is the server running?';
+                }
+
+                chatBtn.classList.remove('listening');
+                chatBtn.textContent = 'Start Voice Chat';
+            };
+
+            recognition.onerror = (event) => {
+                chatStatus.className = 'status error';
+                chatStatus.textContent = '❌ Error: ' + event.error;
+                chatBtn.classList.remove('listening');
+                chatBtn.textContent = 'Start Voice Chat';
+            };
+
+            recognition.start();
+        });
+    </script>
+</body>
+</html>
